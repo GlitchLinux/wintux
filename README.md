@@ -20,7 +20,7 @@ share to see `/mnt/win` and work with Windows files from the shell.
 
 Download `WinTux-Portable-vX.Y.exe`, double-click, boot, go.
 
-- https://glitchlinux.wtf/FILES/GLITCH-SOFTWARE/WinTux/WinTux-Portable-v0.7.exe (62 MB SFX)
+- https://github.com/GlitchLinux/wintux/releases/download/WinTux-Portable-v0.7/WinTux-Portable-v0.7.exe (62 MB SFX)
 - https://glitchlinux.wtf/FILES/GLITCH-SOFTWARE/WinTux/WinTux-Portable-v0.7.7z  (plain .7z)
 
 ## Flow on Windows
