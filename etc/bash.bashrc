@@ -13,7 +13,7 @@ border_color='\033[1;36m'
 cd ~
 mnt-win --umount
 counter 5 -l 'Unmounting Win-Drive'
-mnt-win Admin 9880
+mnt-win
 counter 5 -l 'Mounting Win-Drive'
 clear
 cat >/tmp/WinTux-v0.9 <<'EOF'
