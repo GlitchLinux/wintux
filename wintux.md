@@ -1,0 +1,21 @@
+
+╭───────────────────────────────────────────────────────╮
+│ WinTux v0.6 ~ https://git.glitchlinux.com/wintux.git  │
+│ Portable bash for Windows via QEMU + Buildroot + CIFS │
+╰───────────────────────────────────────────────────────╯
+
+MOUNT
+  mnt-win                    Prompt for user + password
+  mnt-win <user> <pass>      Non-interactive; //10.0.2.2/WinShell
+  mnt-win --save             Save creds; auto-mount next boot
+  mnt-win --umount           Unmount /mnt/win
+
+SETUP (Windows, admin)
+  net share WinShell="%USERPROFILE%" /GRANT:%USERNAME%,FULL
+
+RAW DISKS
+  /dev/vd? → mount with ntfs-3g
+
+NOTE
+  Ephemeral VM. Only writes under /mnt/win reach Windows. 
+
