@@ -16,14 +16,14 @@ counter 5 -l 'Unmounting Win-Drive'
 mnt-win Admin 9880
 counter 5 -l 'Mounting Win-Drive'
 clear
-cat >/tmp/WinTux-v0.8 <<'EOF'
+cat >/tmp/WinTux-v0.9 <<'EOF'
 ╭────────────────────────────────────────────────────╮
-│ ❖  WinTux v0.8 ~ git.glitchlinux.com/wintux.git ❖  │
+│ ❖  WinTux v0.9 ~ git.glitchlinux.com/wintux.git ❖  │
 ╭────────────────────────────────────────────────────╮
 │ Enables Bash shell in Windows through Qemu-Virtfs  │
 │  Using WinTux comes with ABSOLUTELY NO WARRANTY!   │
 ╰────────────────────────────────────────────────────╯
 EOF
-cat /tmp/WinTux-v0.8 | lolcat
+cat /tmp/WinTux-v0.9 | lolcat
 cd /mnt/
 cd win/

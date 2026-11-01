@@ -2,7 +2,7 @@
 clear
 cat > "/tmp/wintux-version" << 'EOF'
 ╭───────────────────────────────────────────────────╮
-│ ❖ WinTux v0.7 ~ git.glitchlinux.com/wintux.git ❖  │
+│ ❖ WinTux v0.9 ~ git.glitchlinux.com/wintux.git ❖  │
 ╰───────────────────────────────────────────────────╯
 │ Enables Bash shell in Windows through QEMU + CIFS │
 │ Using WinTux comes with: ABSOLUTELY NO WARRANTY!  │
