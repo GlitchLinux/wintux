@@ -1,24 +1,29 @@
 #!/bin/bash
+
+export PATH="/usr/local/sbin:/usr/local/bin:$PATH"
+export PS1='\u@\h:\w\$ '
+
 clear
-cat > "/tmp/wintux-version" << 'EOF'
-╭───────────────────────────────────────────────────╮
-│ ❖ WinTux v0.7 ~ git.glitchlinux.com/wintux.git ❖  │
-╰───────────────────────────────────────────────────╯
-│ Enables Bash shell in Windows through QEMU + CIFS │
-│ Using WinTux comes with: ABSOLUTELY NO WARRANTY!  │
-╰───────────────────────────────────────────────────╯
+
+# Color definitions
+PINK='\033[1;35m'
+NC='\033[0m'
+border_color='\033[1;36m'
+
+cd ~
+mnt-win --umount
+counter 5 -l 'Unmounting Win-Drive'
+mnt-win Admin 9880
+counter 5 -l 'Mounting Win-Drive'
+clear
+cat >/tmp/WinTux-v0.7 <<'EOF'
+�^u��^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�>
+�^t^b �^}^v  WinTux v0.7 ~ git.glitchlinux.com/wintux.git �^}^v  �^t^b
+�^u��^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�>
+�^t^b Enables Bash shell in Windows through Qemu-Virtfs  �^t^b
+�^t^b  Using WinTux comes with ABSOLUTELY NO WARRANTY!   �^t^b
+�^u��^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�>
 EOF
-cat /tmp/wintux-version | lolcat -r && cat > "/tmp/wintux-help" << 'EOF'
-╭─────────────────────────────────────────────────╮
-│ First time only on the Windows side as admin: > ╰───────╮
-│ net share WinTux="%USERPROFILE%" /GRANT:%USERNAME%,FULL │
-╰─────────────────────────────────────────────────────────╯
-│ Access your Windows files using the WinTux Bash shell > │
-╰─────────────────────────────────────────────────────────╯
-│ mnt-win            # prompts for Windows credentials    │
-│ mnt-win  user pass # non-interactive, automounts WinTux │
-│ mnt-win  --save    # Save creds to auto-mount on reboot │
-│ mnt-win  --umount  # unmounts /mnt/win from Windows     │
-╰─────────────────────────────────────────────────────────╯
-EOF
-cat /tmp/wintux-help | lolcat -r
+cat /tmp/WinTux-v0.7 | lolcat
+cd /mnt/
+cd win/
