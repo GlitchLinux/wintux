@@ -34,7 +34,9 @@ set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")" && pwd)
 WORK=${WINTUX_WORK:-$REPO/.work}
-VERSION=${WINTUX_VERSION:-0.8}
+# Single source of truth for the version is $REPO/VERSION (one line).
+# Env var WINTUX_VERSION overrides it for one-off builds.
+VERSION=${WINTUX_VERSION:-$(cat "$REPO/VERSION" 2>/dev/null | head -1 | tr -d ' \t\n\r' || echo "0.9")}
 BR_TAG=${WINTUX_BUILDROOT_TAG:-2026.08}
 JOBS=${WINTUX_JOBS:-$(nproc 2>/dev/null || echo 4)}
 
@@ -118,6 +120,16 @@ if [ "$cmd" = "full" ]; then
 
     # mount.ntfs symlink (ntfs-3g registers mount.ntfs-3g; we also want mount.ntfs)
     ln -sf ntfs-3g "$OVERLAY/sbin/mount.ntfs"
+
+    # Substitute the version into every overlay file that references it.
+    # Matches "WinTux v<ver>" (motd/bash.bashrc banner) and "WinTux-v<ver>"
+    # (filenames inside bash.bashrc / 50-wintux-login.sh). The third regex
+    # rewrites WINTUX_VERSION="..." in /etc/wintux-release.
+    echo "[4b/7] substituting WinTux version '$VERSION' into overlay files"
+    find "$OVERLAY/etc" "$OVERLAY/root" -type f -exec sed -i -E \
+        "s/WinTux v[0-9][0-9.a-zA-Z_-]*/WinTux v$VERSION/g; \
+         s/WinTux-v[0-9][0-9.a-zA-Z_-]*/WinTux-v$VERSION/g; \
+         s/^WINTUX_VERSION=.*/WINTUX_VERSION=\"$VERSION\"/" {} \;
 fi
 
 # --- step 5: cross-compile the GUI launcher ------------------------------
@@ -129,10 +141,18 @@ if [ "$cmd" = "full" ] || [ "$cmd" = "gui" ]; then
     BUILD_GUI=$WORK/gui-build
     mkdir -p "$BUILD_GUI"
     cp "$GUI_SRC/main.c" "$GUI_SRC/resources.rc" "$GUI_SRC/wintux.ico" "$BUILD_GUI/"
+    cp "$GUI_SRC/tray.c" "$BUILD_GUI/"
     ( cd "$BUILD_GUI" && \
         x86_64-w64-mingw32-windres resources.rc -o resources.o && \
-        x86_64-w64-mingw32-gcc -O2 -o WinTux.exe main.c resources.o \
-            -lgdi32 -lcomctl32 -lcomdlg32 -mwindows -municode )
+        x86_64-w64-mingw32-gcc -O2 \
+            -D"WINTUX_VERSION_WSTR=L\"$VERSION\"" \
+            -o WinTux.exe main.c resources.o \
+            -lgdi32 -lcomctl32 -lcomdlg32 -lshell32 -ladvapi32 -mwindows -municode && \
+        x86_64-w64-mingw32-gcc -O2 \
+            -o WinTuxTray.exe tray.c resources.o \
+            -lshell32 -lgdi32 -mwindows -municode )
+    cp "$BUILD_GUI/WinTuxTray.exe" "$DIST/WinTuxTray.exe"
+    echo "   -> $DIST/WinTuxTray.exe ($(du -h "$BUILD_GUI/WinTuxTray.exe" | awk '{print $1}'))"
     cp "$BUILD_GUI/WinTux.exe" "$DIST/WinTux.exe"
     echo "   -> $DIST/WinTux.exe ($(du -h "$DIST/WinTux.exe" | awk '{print $1}'))"
 fi

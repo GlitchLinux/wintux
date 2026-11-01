@@ -12,7 +12,8 @@
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")" && pwd)
-VERSION=${WINTUX_VERSION:-0.8}
+# Version from env (set by build.sh), or $REPO/VERSION, or hardcoded fallback
+VERSION=${WINTUX_VERSION:-$(cat "$REPO/VERSION" 2>/dev/null | head -1 | tr -d ' \t\n\r' || echo "0.9")}
 WORK=${WINTUX_WORK:-$REPO/.work}
 BR_OUT=$WORK/out
 KEY_DIR=${WINTUX_KEY_DIR:-$WORK/keys}
@@ -71,6 +72,7 @@ fi
 
 echo "[2/4] installing WinTux artefacts"
 cp "$GUI_EXE"                        "$TREE/WinTux.exe"
+[ -f "$DIST/WinTuxTray.exe" ] && cp "$DIST/WinTuxTray.exe" "$TREE/WinTuxTray.exe"
 cp "$BR_OUT/images/bzImage"          "$TREE/qemu/bzImage"
 cp "$BR_OUT/images/rootfs.cpio.xz"   "$TREE/qemu/rootfs.cpio.xz"
 cp "$KEY_DIR/wintux_key"             "$TREE/qemu/wintux_key"

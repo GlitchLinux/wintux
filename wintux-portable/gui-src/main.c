@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <shlobj.h>
+#include <shellapi.h>
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -64,7 +65,7 @@
 #define COL_LB_BG     RGB(30,  30,  30)
 
 #define CLIENT_W 460
-#define CLIENT_H 410
+#define CLIENT_H 460
 #define MARGIN    20
 #define CONTENT_Y 132
 #define BTN_ROW_Y (CLIENT_H - 52)
@@ -81,6 +82,7 @@ enum {
     /* WinTux integration */
     ID_BTN_WINTUX = 1090, ID_BTN_WINTUX_SSH,
     ID_BTN_WINTUX_CONFIG, ID_BTN_WINTUX_CONFIG_SAVE,
+    ID_BTN_WINTUX_INSTALL,
     ID_CB_WINTUX_HEADLESS,
     ID_EDIT_WIN_USER, ID_EDIT_WIN_PASS, ID_EDIT_WIN_SHARE, ID_EDIT_WIN_HOST,
     ID_LBL_WIN_USER, ID_LBL_WIN_PASS, ID_LBL_WIN_SHARE, ID_LBL_WIN_HOST,
@@ -120,6 +122,7 @@ static HWND g_btnBack, g_btnLaunch, g_btnRefresh, g_btnSelect;
 static HWND g_btnMenu, g_btnKill, g_btnExit;
 static HWND g_btnPhysical, g_btnIso, g_btnIpxe, g_btnCombo, g_btnBootUtil;
 static HWND g_btnWintux, g_btnWintuxSsh, g_btnWintuxConfig, g_btnWintuxConfigSave;
+static HWND g_btnWintuxInstall;
 static HWND g_cbWintuxHeadless;
 static HWND g_editWinUser, g_editWinPass, g_editWinShare, g_editWinHost;
 static HWND g_lblWinUser, g_lblWinPass, g_lblWinShare, g_lblWinHost, g_lblWinHint;
@@ -291,9 +294,154 @@ static BOOL BrowseImage(HWND owner, WCHAR *out, int outLen) {
     return FALSE;
 }
 
+/* ---- Install to Program Files ------------------------------------------
+ * Copies the current directory tree to %ProgramFiles%\WinTux\, creates
+ * shortcuts in the Start Menu + Desktop, registers in Add/Remove Programs,
+ * and launches WinTuxTray.exe. Elevates via "runas" ShellExecute if not
+ * already admin. */
+static BOOL IsRunningElevated(void) {
+    BOOL ret = FALSE;
+    HANDLE token;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        TOKEN_ELEVATION elev;
+        DWORD size = sizeof(elev);
+        if (GetTokenInformation(token, TokenElevation, &elev, size, &size))
+            ret = elev.TokenIsElevated;
+        CloseHandle(token);
+    }
+    return ret;
+}
+
+static int RunAndWait(const WCHAR *cmdline, DWORD timeout_ms) {
+    STARTUPINFOW si; PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si)); si.cb = sizeof(si);
+    ZeroMemory(&pi, sizeof(pi));
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    WCHAR buf[8192];
+    wcscpy(buf, cmdline);  /* CreateProcess may modify the string */
+    if (!CreateProcessW(NULL, buf, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+        return -1;
+    WaitForSingleObject(pi.hProcess, timeout_ms);
+    DWORD rc = 1;
+    GetExitCodeProcess(pi.hProcess, &rc);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    return (int)rc;
+}
+
+static void InstallToProgramFiles(void) {
+    WCHAR self[MAX_PATH];
+    GetModuleFileNameW(NULL, self, MAX_PATH);
+
+    if (!IsRunningElevated()) {
+        /* Re-launch self elevated with /install, so UAC prompts once. */
+        SHELLEXECUTEINFOW sei; ZeroMemory(&sei, sizeof(sei));
+        sei.cbSize = sizeof(sei);
+        sei.lpVerb = L"runas";
+        sei.lpFile = self;
+        sei.lpParameters = L"/install";
+        sei.nShow = SW_SHOWNORMAL;
+        if (!ShellExecuteExW(&sei)) {
+            MessageBoxW(g_hWnd, L"Installation needs administrator privileges, and the UAC prompt was dismissed.",
+                        WINDOW_TITLE, MB_OK | MB_ICONWARNING);
+            return;
+        }
+        /* Quit the non-elevated instance; the elevated one will do the work. */
+        PostQuitMessage(0);
+        return;
+    }
+
+    /* Source dir = where current WinTux.exe lives */
+    WCHAR src[MAX_PATH];
+    wcscpy(src, self);
+    WCHAR *s = wcsrchr(src, L'\\'); if (s) *s = 0;
+
+    /* Target = %ProgramFiles%\WinTux */
+    WCHAR pfx[MAX_PATH];
+    if (!GetEnvironmentVariableW(L"ProgramFiles", pfx, MAX_PATH)) wcscpy(pfx, L"C:\\Program Files");
+    WCHAR target[MAX_PATH];
+    wsprintfW(target, L"%s\\WinTux", pfx);
+
+    /* 1. Copy the whole source tree with xcopy */
+    WCHAR cmd[4096];
+    wsprintfW(cmd, L"cmd.exe /c xcopy /E /I /Y /Q \"%s\\*\" \"%s\\\"", src, target);
+    if (RunAndWait(cmd, 120000) != 0) {
+        MessageBoxW(g_hWnd, L"xcopy failed. Installation aborted.", WINDOW_TITLE, MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    /* 2. Create Start Menu + Desktop shortcuts via PowerShell + WScript.Shell */
+    WCHAR ps[6144];
+    wsprintfW(ps,
+        L"powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
+        L"\"$sh=New-Object -COM WScript.Shell;"
+        L" $sm=[Environment]::GetFolderPath('CommonStartMenu')+'\\Programs\\WinTux.lnk';"
+        L" $dk=[Environment]::GetFolderPath('CommonDesktopDirectory')+'\\WinTux.lnk';"
+        L" foreach ($p in @($sm,$dk)) {"
+        L"   $l=$sh.CreateShortcut($p);"
+        L"   $l.TargetPath='%s\\WinTux.exe';"
+        L"   $l.IconLocation='%s\\WinTux.exe,0';"
+        L"   $l.WorkingDirectory='%s';"
+        L"   $l.Description='Portable bash for Windows via QEMU + CIFS';"
+        L"   $l.Save() }\"",
+        target, target, target);
+    RunAndWait(ps, 30000);
+
+    /* 3. Register in Add/Remove Programs under HKLM */
+    HKEY hKey;
+    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\WinTux",
+        0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        const WCHAR *name = L"WinTux";
+        const WCHAR *pub  = L"Glitch Linux";
+        /* Build-time version from -DWINTUX_VERSION_WSTR=L"X.Y" (set by
+         * build.sh from VERSION file). Fallback for stand-alone compiles. */
+#ifndef WINTUX_VERSION_WSTR
+#define WINTUX_VERSION_WSTR L"0.9"
+#endif
+        const WCHAR *ver  = WINTUX_VERSION_WSTR;
+        RegSetValueExW(hKey, L"DisplayName",    0, REG_SZ, (BYTE*)name, (DWORD)((wcslen(name)+1)*sizeof(WCHAR)));
+        RegSetValueExW(hKey, L"Publisher",      0, REG_SZ, (BYTE*)pub,  (DWORD)((wcslen(pub)+1)*sizeof(WCHAR)));
+        RegSetValueExW(hKey, L"DisplayVersion", 0, REG_SZ, (BYTE*)ver,  (DWORD)((wcslen(ver)+1)*sizeof(WCHAR)));
+        WCHAR buf[MAX_PATH];
+        RegSetValueExW(hKey, L"InstallLocation", 0, REG_SZ, (BYTE*)target, (DWORD)((wcslen(target)+1)*sizeof(WCHAR)));
+        wsprintfW(buf, L"%s\\WinTux.exe,0", target);
+        RegSetValueExW(hKey, L"DisplayIcon", 0, REG_SZ, (BYTE*)buf, (DWORD)((wcslen(buf)+1)*sizeof(WCHAR)));
+        wsprintfW(buf, L"cmd.exe /c rmdir /S /Q \"%s\"", target);
+        RegSetValueExW(hKey, L"UninstallString", 0, REG_SZ, (BYTE*)buf, (DWORD)((wcslen(buf)+1)*sizeof(WCHAR)));
+        DWORD one = 1;
+        RegSetValueExW(hKey, L"NoModify", 0, REG_DWORD, (BYTE*)&one, sizeof(DWORD));
+        RegSetValueExW(hKey, L"NoRepair", 0, REG_DWORD, (BYTE*)&one, sizeof(DWORD));
+        RegCloseKey(hKey);
+    }
+
+    /* 4. Launch the tray */
+    WCHAR tray[MAX_PATH];
+    wsprintfW(tray, L"%s\\WinTuxTray.exe", target);
+    if (GetFileAttributesW(tray) != INVALID_FILE_ATTRIBUTES) {
+        SHELLEXECUTEINFOW sei; ZeroMemory(&sei, sizeof(sei));
+        sei.cbSize = sizeof(sei); sei.lpFile = tray; sei.lpDirectory = target;
+        sei.nShow = SW_SHOWNORMAL;
+        ShellExecuteExW(&sei);
+    }
+
+    /* 5. Done */
+    WCHAR msg[2048];
+    wsprintfW(msg,
+        L"WinTux installed to:\n   %s\n\n"
+        L"Shortcuts created in Start Menu + Desktop.\n"
+        L"Registered in Add/Remove Programs.\n"
+        L"System tray monitor launched.\n\n"
+        L"You can delete the folder you ran this .exe from.",
+        target);
+    MessageBoxW(g_hWnd, msg, L"WinTux - Install complete", MB_OK | MB_ICONINFORMATION);
+    PostQuitMessage(0);
+}
+
 /* ---- WinTux credentials file (plain shell-source format for the guest) ----
- * Lives next to QEMU-Portable.exe. Contains cleartext password; this is for a
- * localhost VM only, so it is the user's own ACLed Windows file. */
+ * Lives next to WinTux.exe when portable, or %LOCALAPPDATA%\WinTux when
+ * installed. Contains cleartext password; the VM is localhost-only. */
 static void LoadWintuxConfig(void) {
     /* Defaults */
     SetWindowTextW(g_editWinHost,  L"10.0.2.2");
@@ -567,6 +715,7 @@ static void ShowPage(int pg) {
         ShowWindow(g_btnWintux, SW_SHOW);
         ShowWindow(g_cbWintuxHeadless, SW_SHOW);
         ShowWindow(g_btnWintuxConfig, SW_SHOW);
+        ShowWindow(g_btnWintuxInstall, SW_SHOW);
         ShowWindow(g_btnExit, SW_SHOW);
         break;
     }
@@ -712,9 +861,13 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         g_btnWintuxConfig = MkBtn(hWnd, ID_BTN_WINTUX_CONFIG, L"Configure WinTux Share",
             MARGIN, bY, cw, bh);
 
+        /* Row 2: Install to Program Files */
+        g_btnWintuxInstall = MkBtn(hWnd, ID_BTN_WINTUX_INSTALL, L"Install to Program Files",
+            MARGIN, bY + (bh + bg), cw, bh);
+
         /* Exit at the bottom */
         g_btnExit = MkBtn(hWnd, ID_BTN_EXIT, L"Exit",
-            MARGIN, bY + (bh + bg) + 6, cw, 32);
+            MARGIN, bY + (bh + bg) * 2 + 6, cw, 32);
 
         /* Generic QEMU boot buttons kept in the code but off-screen.
          * No longer reachable from the menu; prevents breaking WM_COMMAND
@@ -903,6 +1056,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         else if (id == ID_BTN_WINTUX_SSH) DrawBtnFill(di, RGB(60,60,60), COL_ACCENT);
         else if (id == ID_BTN_WINTUX_CONFIG) DrawBtn(di, COL_ACCENT, COL_ACCENT);
         else if (id == ID_BTN_WINTUX_CONFIG_SAVE) DrawBtnFill(di, RGB(60,60,60), COL_ACCENT);
+        else if (id == ID_BTN_WINTUX_INSTALL) DrawBtn(di, COL_ACCENT, COL_ACCENT);
         else if (id == ID_BTN_KILL) DrawBtn(di, COL_DANGER, COL_DANGER);
         else if (id == ID_BTN_EXIT) DrawBtn(di, COL_BORDER, COL_FG_DIM);
         else if (id >= ID_BTN_BU_FIRST && id <= ID_BTN_BU_LAST) DrawBtn(di, COL_ACCENT, COL_ACCENT);
@@ -941,6 +1095,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case ID_BTN_WINTUX_CONFIG_SAVE:
             SaveWintuxConfig();
             ShowPage(PG_MENU);
+            break;
+        case ID_BTN_WINTUX_INSTALL:
+            InstallToProgramFiles();
             break;
         case ID_BTN_PHYSICAL:
             g_sourceIsPhysical=TRUE; g_sourceIsIpxe=FALSE; g_hasSecondary=FALSE;
@@ -1035,9 +1192,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 }
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, LPWSTR cmdLine, int nShow) {
-    (void)hPrev; (void)cmdLine; (void)nShow;
+    (void)hPrev; (void)nShow;
     g_hInst = hInst;
     SetProcessDPIAware();
+
+    /* /install flag: performed by the elevated child when the user clicks
+     * Install to Program Files. Skip the main GUI and run the install flow
+     * on a hidden parent window, then exit. */
+    if (cmdLine && wcsstr(cmdLine, L"/install")) {
+        /* We still need a HWND for MessageBox owner. Use the desktop. */
+        g_hWnd = GetDesktopWindow();
+        InstallToProgramFiles();
+        return 0;
+    }
 
     GetModuleFileNameW(NULL, g_launcherDir, MAX_PATH);
     WCHAR *sl = wcsrchr(g_launcherDir, L'\\'); if (sl) *sl = 0;
@@ -1045,7 +1212,22 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, LPWSTR cmdLine, int nShow)
     wsprintfW(g_qemuBin, L"%s\\" QEMU_BINARY, g_qemuRoot);
     wsprintfW(g_ovmfCode, L"%s\\bios\\" OVMF_CODE_FN, g_qemuRoot);
     wsprintfW(g_ovmfVarsTemplate, L"%s\\bios\\" OVMF_VARS_FN, g_qemuRoot);
-    wsprintfW(g_wintuxCredsPath, L"%s\\wintux-creds.cfg", g_launcherDir);
+
+    /* Credentials file: next to WinTux.exe when portable, under
+     * %LOCALAPPDATA%\WinTux when installed (Program Files is read-only to
+     * non-admins). */
+    {
+        WCHAR laDir[MAX_PATH];
+        if (wcsstr(g_launcherDir, L"Program Files") &&
+            GetEnvironmentVariableW(L"LOCALAPPDATA", laDir, MAX_PATH)) {
+            WCHAR laWintux[MAX_PATH];
+            wsprintfW(laWintux, L"%s\\WinTux", laDir);
+            CreateDirectoryW(laWintux, NULL);
+            wsprintfW(g_wintuxCredsPath, L"%s\\wintux-creds.cfg", laWintux);
+        } else {
+            wsprintfW(g_wintuxCredsPath, L"%s\\wintux-creds.cfg", g_launcherDir);
+        }
+    }
 
     if (GetFileAttributesW(g_qemuBin) == INVALID_FILE_ATTRIBUTES) {
         WCHAR e[1024]; wsprintfW(e, L"%s not found.\n\nExpected:\n%s", QEMU_BINARY, g_qemuBin);
