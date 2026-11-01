@@ -17,15 +17,15 @@ counter 5 -l 'Unmounting Win-Drive'
 mnt-win Admin 9880
 counter 5 -l 'Mounting Win-Drive'
 clear
-cat >/tmp/WinTux-v0.7 <<'EOF'
-�^u��^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�>
-�^t^b �^}^v  WinTux v0.7 ~ git.glitchlinux.com/wintux.git �^}^v  �^t^b
-�^u��^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�>
-�^t^b Enables Bash shell in Windows through Qemu-Virtfs  �^t^b
-�^t^b  Using WinTux comes with ABSOLUTELY NO WARRANTY!   �^t^b
-�^u��^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�^t^`�>
+cat >/tmp/WinTux-v0.8 <<'EOF'
+╭────────────────────────────────────────────────────╮
+│ ❖  WinTux v0.8 ~ git.glitchlinux.com/wintux.git ❖  │
+╭────────────────────────────────────────────────────╮
+│ Enables Bash shell in Windows through Qemu-Virtfs  │
+│  Using WinTux comes with ABSOLUTELY NO WARRANTY!   │
+╰────────────────────────────────────────────────────╯
 EOF
-cat /tmp/WinTux-v0.7 | lolcat
+cat /tmp/WinTux-v0.8 | lolcat
 cd /mnt/
 cd win/
 HEADER
