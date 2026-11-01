@@ -1,21 +1,24 @@
-╭───────────────────────────────────────────────────────╮
-│ WinTux v0.6 ~ https://git.glitchlinux.com/wintux.git  │
-│ Portable bash for Windows via QEMU + Buildroot + CIFS │
-╰───────────────────────────────────────────────────────╯
-  
-To get at your Windows files inside this VM:
-
-  mnt-win                   # prompts for Windows user + password
-  mnt-win <user> <pass>     # non-interactive, mounts //10.0.2.2/WinTux
-  mnt-win --save            # remember creds; auto-mount on next boot
-  mnt-win --umount          # unmount /mnt/win
-
-First time only, on the Windows side (admin cmd):
-
-      net share WinTux="%USERPROFILE%" /GRANT:%USERNAME%,FULL
-
-Raw-attached disks (secondary disks the launcher passed to the VM) show
-   up as /dev/vd? and mount with ntfs-3g directly.
-
-This is an ephemeral VM. Anything in / disappears on shutdown. Only
-writes under /mnt/win reach Windows.
+#!/bin/bash
+clear
+cat > "/tmp/wintux-version" << 'EOF'
+╭───────────────────────────────────────────────────╮
+│ ❖ WinTux v0.7 ~ git.glitchlinux.com/wintux.git ❖  │
+╰───────────────────────────────────────────────────╯
+│ Enables Bash shell in Windows through QEMU + CIFS │
+│ Using WinTux comes with: ABSOLUTELY NO WARRANTY!  │
+╰───────────────────────────────────────────────────╯
+EOF
+cat /tmp/wintux-version | lolcat -r && cat > "/tmp/wintux-help" << 'EOF'
+╭─────────────────────────────────────────────────╮
+│ First time only on the Windows side as admin: > ╰───────╮
+│ net share WinTux="%USERPROFILE%" /GRANT:%USERNAME%,FULL │
+╰─────────────────────────────────────────────────────────╯
+│ Access your Windows files using the WinTux Bash shell > │
+╰─────────────────────────────────────────────────────────╯
+│ mnt-win            # prompts for Windows credentials    │
+│ mnt-win  user pass # non-interactive, automounts WinTux │
+│ mnt-win  --save    # Save creds to auto-mount on reboot │
+│ mnt-win  --umount  # unmounts /mnt/win from Windows     │
+╰─────────────────────────────────────────────────────────╯
+EOF
+cat /tmp/wintux-help | lolcat -r
