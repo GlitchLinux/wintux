@@ -1,7 +1,10 @@
-╭──────────────────────────────────────────────╮
-│ WinTux v0.6 ~ git.glitchlinux.com/wintux.git │
-│ Portable bash for Windows with QEMU and CIFS │
-╰──────────────────────────────────────────────╯
+```bash
+╭───────────────────────────────────────────────────────╮
+│ WinTux v0.6 ~ https://git.glitchlinux.com/wintux.git  │
+│ Portable bash for Windows via QEMU + Buildroot + CIFS │
+╰───────────────────────────────────────────────────────╯
+```
+---
 
 To get to your Windows files from the shell:
 
