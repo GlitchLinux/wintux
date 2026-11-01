@@ -1,3 +1,4 @@
+#!/bin/bash
 cat > /etc/bash.bashrc <<'HEADER'
 #!/bin/bash
 
@@ -13,9 +14,10 @@ border_color='\033[1;36m'
 
 cd ~
 mnt-win --umount
-counter 5 -l 'Unmounting Win-Drive'
-mnt-win Admin 9880
-counter 5 -l 'Mounting Win-Drive'
+counter 3 -l 'Unmounting Win-Drive'
+clear
+mnt-win
+counter 3 -l 'Mounting Win-Drive'
 clear
 cat >/tmp/WinTux-v0.9 <<'EOF'
 ╭────────────────────────────────────────────────────╮
