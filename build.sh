@@ -155,5 +155,8 @@ fi
 
 # --- step 7: assemble the Windows-side package ---------------------------
 echo "[7/7] packaging WinTux-Portable-v$VERSION"
-export WINTUX_VERSION WINTUX_WORK=$WORK WINTUX_KEY_DIR=$KEY_DIR WINTUX_DIST=$DIST
+export WINTUX_VERSION="$VERSION"
+export WINTUX_WORK="$WORK"
+export WINTUX_KEY_DIR="$KEY_DIR"
+export WINTUX_DIST="$DIST"
 exec bash "$REPO/package.sh"

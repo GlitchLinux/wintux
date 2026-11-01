@@ -12,7 +12,7 @@
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")" && pwd)
-VERSION=${WINTUX_VERSION:-0.7}
+VERSION=${WINTUX_VERSION:-0.8}
 WORK=${WINTUX_WORK:-$REPO/.work}
 BR_OUT=$WORK/out
 KEY_DIR=${WINTUX_KEY_DIR:-$WORK/keys}
