@@ -1,5 +1,4 @@
-# WinTux 
-
+## [![WinTux](https://github.com/user-attachments/assets/e126523a-5175-48e6-aef5-4c2afcca5e67)]([https://github.com/GlitchLinux/wintux.git]) WinTux
 ```bash
 ╭───────────────────────────────────────────────────────╮
 │ WinTux v0.6 ~ https://git.glitchlinux.com/wintux.git  │
