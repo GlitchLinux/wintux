@@ -1,19 +1,24 @@
-╭────────────────────────────────────────────────────╮
-│ ❖  WinTux v0.7 ~ git.glitchlinux.com/wintux.git ❖ │
-╰────────────────────────────────────────────────────╯
-│ Enables Bash shell in Windows through QEMU + CIFS  │
-│  Using WinTux comes with ABSOLUTELY NO WARRANTY!   │
-╰────────────────────────────────────────────────────╰───────╮
-│ To access your Windows files using wintux bash shell:      │                                                                    │
-│ mnt-win              # prompts for Windows credentials     │
-│ mnt-win  user  pass  # non-interactive, automounts WinTux  │
-│ mnt-win --save       # Save creds to auto-mount on reboot  │
-│ mnt-win --umount     # unmounts /mnt/win from Windows      │
-╰────────────────────────────────────────────────────────────╯
-│ WinTux FS is Amnesiac - files in / disappears on vm reboot │
-│ Only writes made to Windows at: /mnt/win stay persistent!  │
-╰────────────────────────────────────────────────────────────╯
-╭─────────────────────────────────────────────────────╮ 
-│ First time only, on the Windows side (as admin)  >  ╰─CMD.exe─╮
-│ C:\> net share WinTux="%USERPROFILE%" /GRANT:%USERNAME%,FULL  │ 
-╰───────────────────────────────────────────────────────────────╯
+#!/bin/bash
+clear
+cat > "/tmp/wintux-version" << 'EOF'
+╭───────────────────────────────────────────────────╮
+│ ❖ WinTux v0.7 ~ git.glitchlinux.com/wintux.git ❖  │
+╰───────────────────────────────────────────────────╯
+│ Enables Bash shell in Windows through QEMU + CIFS │
+│ Using WinTux comes with: ABSOLUTELY NO WARRANTY!  │
+╰───────────────────────────────────────────────────╯
+EOF
+cat /tmp/wintux-version | lolcat -r && cat > "/tmp/wintux-help" << 'EOF'
+╭─────────────────────────────────────────────────╮
+│ First time only on the Windows side as admin: > ╰───────╮
+│ net share WinTux="%USERPROFILE%" /GRANT:%USERNAME%,FULL │
+╰─────────────────────────────────────────────────────────╯
+│ Access your Windows files using the WinTux Bash shell > │
+╰─────────────────────────────────────────────────────────╯
+│ mnt-win            # prompts for Windows credentials    │
+│ mnt-win  user pass # non-interactive, automounts WinTux │
+│ mnt-win  --save    # Save creds to auto-mount on reboot │
+│ mnt-win  --umount  # unmounts /mnt/win from Windows     │
+╰─────────────────────────────────────────────────────────╯
+EOF
+cat /tmp/wintux-help | lolcat -r
