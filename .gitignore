@@ -1,0 +1,9 @@
+# Build output, caches, keys
+.work/
+vendor/qemu-win.7z
+
+# Editor noise
+*.swp
+*.swo
+*~
+.DS_Store

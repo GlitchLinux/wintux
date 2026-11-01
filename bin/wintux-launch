@@ -1,0 +1,14 @@
+#!/bin/bash
+# Started by busybox getty (-n -l) on tty1 as root, i.e. an autologin.
+# Prints the WinTux banner and drops to an interactive bash shell.
+# The 9P mount + dropbear + Windows-disk detection are already done by
+# /etc/init.d/S20wintux before this runs.
+export HOME=/root USER=root LOGNAME=root SHELL=/bin/bash
+export PATH=/usr/local/sbin:/usr/local/bin:/bin:/sbin:/usr/bin:/usr/sbin
+export TERM="${TERM:-linux}"
+cd /root 2>/dev/null || cd /
+
+# Enable UTF-8 so box drawing in the banner renders correctly on tty1
+printf '\033%%G'
+
+exec /bin/bash -l

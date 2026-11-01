@@ -1,0 +1,100 @@
+#!/bin/sh
+# mnt-win - mount a Windows SMB share on /mnt/win inside the WinTux VM.
+#
+# Usage:
+#   mnt-win                                    # prompt+mount (empty password = guest)
+#   mnt-win <user> <password> [share]          # non-interactive mount
+#   mnt-win --guest                            # explicit guest mount
+#   mnt-win --save [<user> <password> [share]] # mount+save; or just save if already mounted
+#   mnt-win --umount                           # unmount /mnt/win
+#   mnt-win --forget                           # remove saved creds
+#
+# Persistent cross-boot storage lives in wintux-creds.cfg next to WinTux.exe on
+# the Windows host, fed in via QEMU -fw_cfg. /root/.wintux-cifs here is
+# session-scoped (ephemeral initramfs).
+
+set -e
+
+CREDS=/root/.wintux-cifs
+HOST="${WIN_HOST:-10.0.2.2}"
+SAVE=0
+GUEST=0
+
+case "$1" in
+    --umount|-u)
+        if mountpoint -q /mnt/win; then
+            umount /mnt/win && echo "unmounted /mnt/win"
+        else
+            echo "/mnt/win is not mounted"
+        fi
+        exit 0
+        ;;
+    --forget)
+        [ -f "$CREDS" ] && { rm -f "$CREDS"; echo "removed $CREDS."; } \
+                       || echo "no saved creds to remove."
+        exit 0
+        ;;
+    --guest|-g)
+        GUEST=1
+        shift
+        ;;
+    --save|-s)
+        SAVE=1
+        shift
+        ;;
+esac
+
+SHARE="${3:-${WIN_SHARE:-WinTux}}"
+USER="${1:-}"
+PASS="${2:-}"
+
+if [ "$GUEST" = "0" ] && [ -z "$USER" ]; then
+    printf "Windows user:  "
+    read USER
+    [ -z "$USER" ] && GUEST=1
+fi
+if [ "$GUEST" = "0" ] && [ -z "$PASS" ]; then
+    printf "Password:      (Enter for guest access) "
+    stty -echo 2>/dev/null
+    read PASS
+    stty echo 2>/dev/null
+    echo
+    [ -z "$PASS" ] && GUEST=1
+fi
+
+mkdir -p /mnt/win
+
+# Common options
+BASE_OPTS="uid=0,gid=0,file_mode=0755,dir_mode=0755,vers=3.0,mapposix,nounix"
+if [ "$GUEST" = "1" ]; then
+    MOUNT_OPTS="guest,sec=none,$BASE_OPTS"
+    USER="guest"; PASS=""
+    SRC_LABEL="//$HOST/$SHARE (guest)"
+else
+    MOUNT_OPTS="user=$USER,password=$PASS,sec=ntlmssp,$BASE_OPTS"
+    SRC_LABEL="//$HOST/$SHARE as $USER"
+fi
+
+if mountpoint -q /mnt/win; then
+    if [ "$SAVE" = "1" ]; then
+        echo "already mounted - saving creds without re-mounting."
+    else
+        echo "already mounted. use 'mnt-win --umount' first to switch."
+        exit 0
+    fi
+else
+    mount -t cifs "//$HOST/$SHARE" /mnt/win -o "$MOUNT_OPTS"
+    echo "mounted $SRC_LABEL on /mnt/win"
+fi
+
+if [ "$SAVE" = "1" ]; then
+    umask 077
+    cat > "$CREDS" <<EOF
+HOST="$HOST"
+SHARE="$SHARE"
+USER="$USER"
+PASSWORD="$PASS"
+GUEST="$GUEST"
+EOF
+    echo "saved to $CREDS (this boot only; persist via GUI Configure)."
+fi

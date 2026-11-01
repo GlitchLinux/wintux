@@ -1,0 +1,5 @@
+WINTUX_NAME="WinTux"
+WINTUX_VERSION="0.7"
+WINTUX_EDITION="QEMU-Portable"
+WINTUX_BASE="GdiskOS-Buildroot"
+WINTUX_URL="https://git.glitchlinux.com/wintux.git"

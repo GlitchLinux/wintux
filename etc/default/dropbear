@@ -1,0 +1,6 @@
+# WinTux dropbear defaults, sourced by /etc/init.d/S50dropbear.
+# -s : disable password logins entirely (keys only).
+# Root is allowed by default; the embedded key in /root/.ssh/authorized_keys
+# is the only way in. The .bat wrapper on the Windows host carries the
+# matching private key.
+DROPBEAR_ARGS="-s"

@@ -1,0 +1,43 @@
+#!/bin/sh
+# WinTux boot hook: mount every 9P tag advertised by QEMU to /mnt/<tag>.
+# Convention used by the .bat wrapper: tag "c" -> /mnt/c, "d" -> /mnt/d, etc.
+# Multiple -virtfs devices with distinct mount_tags are supported.
+
+case "$1" in
+    start|'')
+        # Load 9P modules if they are not built-in (defensive; our kernel builds them in)
+        modprobe 9pnet_virtio 2>/dev/null || true
+        modprobe 9p 2>/dev/null || true
+
+        # Enumerate 9P devices advertised by virtio. Each gets a mount_tag file.
+        for d in /sys/bus/virtio/drivers/9pnet_virtio/virtio*; do
+            [ -d "$d" ] || continue
+            tag_file="$d/mount_tag"
+            [ -r "$tag_file" ] || continue
+            tag=$(cat "$tag_file" 2>/dev/null)
+            [ -n "$tag" ] || continue
+            target="/mnt/$tag"
+            mkdir -p "$target"
+            if mount -t 9p -o trans=virtio,version=9p2000.L,msize=262144,access=any,cache=mmap "$tag" "$target" 2>/dev/null; then
+                echo "wintux: mounted 9p[$tag] at $target"
+            else
+                echo "wintux: 9p mount of [$tag] FAILED"
+            fi
+        done
+
+        # Make sure /root/.ssh perms are what dropbear wants (the overlay copies
+        # them in, but the rootfs may have been repacked at different umasks).
+        [ -d /root/.ssh ] && chmod 700 /root/.ssh
+        [ -f /root/.ssh/authorized_keys ] && chmod 600 /root/.ssh/authorized_keys
+        ;;
+    stop)
+        for m in /mnt/*; do
+            mountpoint -q "$m" && umount "$m" 2>/dev/null
+        done
+        ;;
+    *)
+        echo "Usage: $0 {start|stop}" >&2
+        exit 1
+        ;;
+esac
+exit 0

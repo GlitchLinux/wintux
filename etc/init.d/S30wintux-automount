@@ -1,0 +1,55 @@
+#!/bin/sh
+# Auto-mount Windows CIFS share at boot. Credentials come from (in order):
+#   1. QEMU fw_cfg (opt/wintux/creds) - host-side persistent, preferred
+#   2. /root/.wintux-cifs - saved via `mnt-win --save` (session-scoped)
+# File format:
+#   HOST="10.0.2.2"
+#   SHARE="WinTux"
+#   USER="Admin"       (or "guest" when GUEST=1)
+#   PASSWORD="..."
+#   GUEST="0"          (optional; 1 = mount as guest, ignore USER/PASSWORD)
+
+FWCFG=/sys/firmware/qemu_fw_cfg/by_name/opt/wintux/creds/raw
+LOCAL=/root/.wintux-cifs
+
+case "$1" in
+    start|'')
+        SRC=""
+        TMP=""
+        if [ -r "$FWCFG" ]; then
+            TMP=$(mktemp /tmp/wintux-creds.XXXXXX)
+            cat "$FWCFG" > "$TMP"
+            SRC="$TMP"
+        elif [ -r "$LOCAL" ]; then
+            SRC="$LOCAL"
+        fi
+        [ -n "$SRC" ] || exit 0
+        # shellcheck source=/dev/null
+        . "$SRC"
+        [ -n "$TMP" ] && rm -f "$TMP"
+
+        HOST="${HOST:-10.0.2.2}"
+        SHARE="${SHARE:-WinTux}"
+        BASE_OPTS="uid=0,gid=0,file_mode=0755,dir_mode=0755,vers=3.0,mapposix,nounix"
+
+        if [ "$GUEST" = "1" ] || { [ -z "$USER" ] && [ -z "$PASSWORD" ]; }; then
+            OPTS="guest,sec=none,$BASE_OPTS"
+            LABEL="//$HOST/$SHARE (guest)"
+        else
+            [ -n "$USER" ] || exit 0
+            OPTS="user=$USER,password=$PASSWORD,sec=ntlmssp,$BASE_OPTS"
+            LABEL="//$HOST/$SHARE as $USER"
+        fi
+
+        mkdir -p /mnt/win
+        if mount -t cifs "//$HOST/$SHARE" /mnt/win -o "$OPTS" 2>/dev/null; then
+            echo "wintux: auto-mounted $LABEL at /mnt/win"
+        else
+            echo "wintux: auto-mount of $LABEL FAILED"
+        fi
+        ;;
+    stop)
+        mountpoint -q /mnt/win && umount /mnt/win 2>/dev/null
+        ;;
+esac
+exit 0

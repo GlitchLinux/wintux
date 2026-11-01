@@ -6,7 +6,7 @@
 To get at your Windows files inside this VM:
 
   mnt-win                   # prompts for Windows user + password
-  mnt-win <user> <pass>     # non-interactive, mounts //10.0.2.2/WinShell
+  mnt-win <user> <pass>     # non-interactive, mounts //10.0.2.2/WinTux
   mnt-win --save            # remember creds; auto-mount on next boot
   mnt-win --umount          # unmount /mnt/win
 
