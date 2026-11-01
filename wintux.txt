@@ -2,18 +2,20 @@
 │ WinTux v0.6 ~ https://git.glitchlinux.com/wintux.git  │
 │ Portable bash for Windows via QEMU + Buildroot + CIFS │
 ╰───────────────────────────────────────────────────────╯
+  
+To get at your Windows files inside this VM:
 
-MOUNT
-  mnt-win                    Prompt for user + password
-  mnt-win <user> <pass>      Non-interactive; //10.0.2.2/WinShell
-  mnt-win --save             Save creds; auto-mount next boot
-  mnt-win --umount           Unmount /mnt/win
+  mnt-win                   # prompts for Windows user + password
+  mnt-win <user> <pass>     # non-interactive, mounts //10.0.2.2/WinShell
+  mnt-win --save            # remember creds; auto-mount on next boot
+  mnt-win --umount          # unmount /mnt/win
 
-SETUP (Windows, admin)
-  net share WinShell="%USERPROFILE%" /GRANT:%USERNAME%,FULL
+First time only, on the Windows side (admin cmd):
 
-RAW DISKS
-  /dev/vd? → mount with ntfs-3g
+      net share WinTux="%USERPROFILE%" /GRANT:%USERNAME%,FULL
 
-NOTE
-  Ephemeral VM. Only writes under /mnt/win reach Windows. 
+Raw-attached disks (secondary disks the launcher passed to the VM) show
+   up as /dev/vd? and mount with ntfs-3g directly.
+
+This is an ephemeral VM. Anything in / disappears on shutdown. Only
+writes under /mnt/win reach Windows.
