@@ -24,17 +24,18 @@
 #   ./build.sh package      # just repackage from current .work artefacts
 #
 # Env overrides:
-#   WINTUX_VERSION       (default: 0.7)      - version string baked into the package
-#   WINTUX_BUILDROOT_TAG (default: 2025.08)  - upstream Buildroot tag to clone
+#   WINTUX_VERSION       (default: 0.8)      - version string baked into the package
+#   WINTUX_BUILDROOT_TAG (default: 2026.08)  - upstream Buildroot tag to clone
 #   WINTUX_JOBS          (default: nproc)    - parallelism for the Buildroot build
 #   WINTUX_BASELINE_URL  (default: see below) - QEMU-for-Windows DLL bundle fetch URL
+#   WINTUX_DL_CACHE_URL  (default: see below) - Buildroot dl cache tarball (or "none")
 
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")" && pwd)
 WORK=${WINTUX_WORK:-$REPO/.work}
-VERSION=${WINTUX_VERSION:-0.7}
-BR_TAG=${WINTUX_BUILDROOT_TAG:-2025.08}
+VERSION=${WINTUX_VERSION:-0.8}
+BR_TAG=${WINTUX_BUILDROOT_TAG:-2026.08}
 JOBS=${WINTUX_JOBS:-$(nproc 2>/dev/null || echo 4)}
 
 BR_SRC=$WORK/buildroot
@@ -61,6 +62,24 @@ mkdir -p "$WORK" "$DIST" "$KEY_DIR"
 if [ "$cmd" = "full" ] && [ ! -d "$BR_SRC" ]; then
     echo "[1/7] cloning Buildroot $BR_TAG into $BR_SRC"
     git clone --depth 1 --branch "$BR_TAG" https://github.com/buildroot/buildroot.git "$BR_SRC"
+fi
+
+# --- step 1b: prime the Buildroot download cache if missing --------------
+# Shaves ~5-10 min off a fresh build by skipping upstream source fetches.
+# Set WINTUX_DL_CACHE_URL=none to disable, or point at your own mirror.
+DL_URL=${WINTUX_DL_CACHE_URL:-https://glitchlinux.wtf/FILES/GLITCH-SOFTWARE/WinTux/vendor/wintux-dl-cache.tar}
+if [ "$cmd" = "full" ] && [ "$DL_URL" != "none" ] && \
+   { [ ! -d "$BR_SRC/dl" ] || [ -z "$(ls -A "$BR_SRC/dl" 2>/dev/null)" ]; }; then
+    echo "[1b/7] priming Buildroot dl cache from $DL_URL"
+    mkdir -p "$BR_SRC/dl"
+    if wget -q --show-progress -O /tmp/wintux-dl.tar "$DL_URL" 2>/dev/null; then
+        tar -xf /tmp/wintux-dl.tar -C "$BR_SRC"
+        rm -f /tmp/wintux-dl.tar
+        echo "   dl cache primed ($(du -sh "$BR_SRC/dl" | awk '{print $1}'))"
+    else
+        echo "   dl cache fetch failed (not fatal; Buildroot will fetch tarballs upstream)"
+        rm -f /tmp/wintux-dl.tar
+    fi
 fi
 
 # --- step 2: install our board files + defconfig -------------------------

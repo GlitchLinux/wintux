@@ -4,7 +4,9 @@
 
 # Architecture: x86_64 (64-bit UEFI cannot boot a 32-bit kernel; BOOTX64.EFI target)
 BR2_x86_64=y
-BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
+BR2_TOOLCHAIN_EXTERNAL=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN_X86_64_GLIBC_STABLE=y
 
 # System
 BR2_TARGET_GENERIC_HOSTNAME="wintux"
@@ -15,8 +17,6 @@ BR2_ROOTFS_OVERLAY="board/wintux/overlay"
 BR2_ROOTFS_POST_BUILD_SCRIPT="board/wintux/post-build.sh"
 
 # mkfs.fat converts volume labels through codepage 850
-BR2_TOOLCHAIN_GLIBC_GCONV_LIBS_COPY=y
-BR2_TOOLCHAIN_GLIBC_GCONV_LIBS_LIST="IBM850"
 
 # Autologin: busybox getty on tty1, run WinTux launcher as root (no gdisk-panel)
 BR2_TARGET_GENERIC_GETTY_PORT="tty1"

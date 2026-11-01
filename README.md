@@ -116,13 +116,16 @@ cd wintux
 ./build.sh
 ```
 
-That's it. First run clones upstream Buildroot (pinned tag), cross-compiles
-the Win32 GUI, builds the kernel + rootfs, fetches the QEMU-for-Windows DLL
-bundle, and assembles `.work/dist/WinTux-Portable-vX.Y.exe`.
+That's it. First run clones upstream Buildroot (pinned tag), primes the
+Buildroot download cache (so you skip the ~10 min of upstream source
+fetches), downloads a Bootlin pre-built cross-toolchain (so you skip the
+~45 min of compiling gcc + glibc from scratch), cross-compiles the Win32
+GUI, builds the kernel + rootfs, fetches the QEMU-for-Windows DLL bundle,
+and assembles `.work/dist/WinTux-Portable-vX.Y.exe`.
 
-First build takes 30-90 min depending on your box (mostly Buildroot
-compiling a glibc toolchain). Incremental rebuilds after you touch a file
-in `bin/` / `etc/` / `root/` take about a minute.
+First build is ~15-20 min with the Bootlin toolchain + primed dl cache.
+Incremental rebuilds after you touch a file in `bin/` / `etc/` / `root/`
+take about a minute.
 
 ### Subcommands
 
@@ -135,10 +138,11 @@ in `bin/` / `etc/` / `root/` take about a minute.
 ### Env overrides
 
 ```bash
-WINTUX_VERSION=0.8  ./build.sh                 # version in the output filename + banner
-WINTUX_BUILDROOT_TAG=2025.08  ./build.sh       # which upstream Buildroot tag to use
+WINTUX_VERSION=0.9  ./build.sh                 # version in the output filename + banner
+WINTUX_BUILDROOT_TAG=2026.08  ./build.sh       # which upstream Buildroot tag to use
 WINTUX_JOBS=8  ./build.sh                      # parallelism
 WINTUX_BASELINE_URL=https://...  ./build.sh    # alt URL for the QEMU DLL bundle
+WINTUX_DL_CACHE_URL=none  ./build.sh           # skip the Buildroot dl cache priming
 ```
 
 ## Guest-side gotchas
