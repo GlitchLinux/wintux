@@ -1,0 +1,319 @@
+#!/bin/bash
+
+VERSION="2.0.0"
+
+# Defaults
+label=""
+use_minutes=false
+show_seconds_with_minutes=false
+block_char="■"
+mode="countdown"      # countdown | countup | quiet
+repeat_count=1
+notify=false
+log_file=""
+color=""
+show_percent=false
+show_eta=false
+input_duration=""
+
+show_help() {
+    cat <<HLP
+Usage: counter [options] [duration]
+
+Duration formats:
+  <seconds>          Plain integer, e.g. 90
+  <minutes>          With -m, integer or decimal, e.g. -m 2.5
+  HH:MM:SS / MM:SS   Colon-separated, e.g. 1:30:00 or 5:00
+
+Options:
+  -l 'Label'     Custom prefix label
+  -m             Treat <duration> as minutes (accepts decimals)
+  -s             Show seconds counter alongside minutes (requires -m)
+  -b             Use hollow blocks (□) instead of solid (■)
+  -c <color>     Color the bar (red green yellow blue magenta cyan white, or 0-255)
+  -p             Show percentage complete
+  -e             Show ETA (wall-clock finish time)
+  -u             Count up (stopwatch). Omit duration for an open-ended stopwatch
+  -r <n>         Repeat the timer n times back to back (interval/pomodoro mode)
+  -q             Quiet mode: no bar, just block until done
+  -n             Desktop notification on completion (needs notify-send)
+  -L <file>      Append a completion log line to <file>
+  -v, --version  Show version
+  -h, --help     Show this help message
+HLP
+    exit 0
+}
+
+parse_duration() {
+    local d="$1"
+    if [[ "$d" =~ ^([0-9]+):([0-9]{1,2}):([0-9]{1,2})$ ]]; then
+        echo $(( 10#${BASH_REMATCH[1]} * 3600 + 10#${BASH_REMATCH[2]} * 60 + 10#${BASH_REMATCH[3]} ))
+    elif [[ "$d" =~ ^([0-9]+):([0-9]{1,2})$ ]]; then
+        echo $(( 10#${BASH_REMATCH[1]} * 60 + 10#${BASH_REMATCH[2]} ))
+    elif [[ "$d" =~ ^[0-9]+$ ]]; then
+        local val=$((10#$d))
+        if [ "$use_minutes" = true ]; then
+            echo $(( val * 60 ))
+        else
+            echo "$val"
+        fi
+    elif [[ "$d" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        if [ "$use_minutes" = true ]; then
+            awk -v m="$d" 'BEGIN{printf "%d", (m*60)+0.5}'
+        else
+            echo "Error: decimal seconds not supported, use -m for decimal minutes" >&2
+            exit 1
+        fi
+    else
+        echo "Error: invalid duration '$d'" >&2
+        exit 1
+    fi
+}
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -l)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo "Error: -l requires a label argument" >&2
+                exit 1
+            fi
+            label="$2"; shift 2 ;;
+        -m) use_minutes=true; shift ;;
+        -s) show_seconds_with_minutes=true; shift ;;
+        -b) block_char="□"; shift ;;
+        -c)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo "Error: -c requires a color argument" >&2
+                exit 1
+            fi
+            color="$2"; shift 2 ;;
+        -p) show_percent=true; shift ;;
+        -e) show_eta=true; shift ;;
+        -u) mode="countup"; shift ;;
+        -r)
+            if [[ -z "$2" || ! "$2" =~ ^[0-9]+$ ]]; then
+                echo "Error: -r requires a numeric repeat count" >&2
+                exit 1
+            fi
+            repeat_count="$2"; shift 2 ;;
+        -q) mode="quiet"; shift ;;
+        -n) notify=true; shift ;;
+        -L)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo "Error: -L requires a file path" >&2
+                exit 1
+            fi
+            log_file="$2"; shift 2 ;;
+        -v|--version) echo "counter $VERSION"; exit 0 ;;
+        -h|--help) show_help ;;
+        *)
+            if [[ -z "$input_duration" ]] && [[ "$1" =~ ^([0-9]+(\.[0-9]+)?|[0-9]+:[0-9]{1,2}(:[0-9]{1,2})?)$ ]]; then
+                input_duration="$1"
+                shift
+            else
+                echo "Error: Unknown option $1" >&2
+                echo "Run 'counter --help' for usage instructions." >&2
+                exit 1
+            fi
+            ;;
+    esac
+done
+
+if [ -z "$input_duration" ] && [ "$mode" != "countup" ]; then
+    echo "Error: Missing required argument <duration>." >&2
+    echo "Usage: counter [options] <duration>" >&2
+    exit 1
+fi
+
+if [ "$show_seconds_with_minutes" = true ] && [ "$use_minutes" != true ]; then
+    echo "Warning: -s has no effect without -m" >&2
+fi
+
+if [ -n "$input_duration" ]; then
+    total_seconds=$(parse_duration "$input_duration") || exit 1
+else
+    total_seconds=0
+fi
+
+# Detect if stdout is a terminal or a pipe
+if [ -t 1 ]; then
+    is_piped=false
+else
+    is_piped=true
+fi
+
+# Terminal-width-aware bar sizing
+if [ -t 1 ]; then
+    term_width=$(tput cols 2>/dev/null || echo 80)
+    reserve=20
+    [ -n "$label" ] && reserve=$(( reserve + ${#label} + 2 ))
+    max_bar=$(( term_width - reserve ))
+    [ "$max_bar" -lt 10 ] && max_bar=10
+else
+    max_bar=99
+fi
+
+if [ "$total_seconds" -gt 0 ] && [ "$total_seconds" -lt "$max_bar" ]; then
+    bar_width=$total_seconds
+else
+    bar_width=$max_bar
+fi
+
+# Color setup
+color_code=""
+reset_code=""
+if [ -n "$color" ] && [ -t 1 ]; then
+    case "$color" in
+        red) color_code=$(tput setaf 1 2>/dev/null) ;;
+        green) color_code=$(tput setaf 2 2>/dev/null) ;;
+        yellow) color_code=$(tput setaf 3 2>/dev/null) ;;
+        blue) color_code=$(tput setaf 4 2>/dev/null) ;;
+        magenta) color_code=$(tput setaf 5 2>/dev/null) ;;
+        cyan) color_code=$(tput setaf 6 2>/dev/null) ;;
+        white) color_code=$(tput setaf 7 2>/dev/null) ;;
+        *)
+            if [[ "$color" =~ ^[0-9]+$ ]]; then
+                color_code=$(tput setaf "$color" 2>/dev/null)
+            fi
+            ;;
+    esac
+    [ -n "$color_code" ] && reset_code=$(tput sgr0 2>/dev/null)
+fi
+
+[ -t 1 ] && tput civis 2>/dev/null
+cleanup() {
+    [ -t 1 ] && tput cnorm 2>/dev/null
+    echo ""
+    exit 1
+}
+trap cleanup SIGINT
+
+run_timer() {
+    local total=$1
+    local round_label="$2"
+
+    if [ "$mode" = "quiet" ]; then
+        sleep "$total"
+        return
+    fi
+
+    local start_time end_time
+    start_time=$(date +%s)
+    end_time=$(( start_time + total ))
+
+    while :; do
+        local now remaining elapsed display_seconds
+        now=$(date +%s)
+        if [ "$mode" = "countup" ] && [ "$total" -eq 0 ]; then
+            elapsed=$(( now - start_time ))
+            remaining=0
+        else
+            remaining=$(( end_time - now ))
+            [ "$remaining" -lt 0 ] && remaining=0
+            elapsed=$(( total - remaining ))
+        fi
+
+        if [ "$mode" = "countup" ]; then
+            display_seconds=$elapsed
+        else
+            display_seconds=$remaining
+        fi
+
+        local time_text=""
+        if [ "$use_minutes" = true ] && [ "$total" -gt 0 ]; then
+            local d_min d_sec
+            d_min=$(( display_seconds / 60 ))
+            d_sec=$(( display_seconds % 60 ))
+            if [ "$show_seconds_with_minutes" = true ]; then
+                time_text="${d_min}min ${d_sec}sec"
+            else
+                if [ "$d_sec" -gt 0 ] && [ "$mode" != "countup" ] && [ "$elapsed" -gt 0 ]; then
+                    time_text="$(( d_min + 1 ))min"
+                else
+                    time_text="${d_min}min"
+                fi
+            fi
+        else
+            time_text="${display_seconds}s"
+        fi
+
+        local prefix=""
+        if [ -n "$label" ]; then
+            prefix=" ${label}${round_label}: ${time_text}"
+        else
+            prefix=" ${time_text}${round_label}"
+        fi
+
+        if [ "$show_percent" = true ] && [ "$total" -gt 0 ]; then
+            local pct=$(( elapsed * 100 / total ))
+            prefix="${prefix} (${pct}%)"
+        fi
+
+        if [ "$show_eta" = true ] && [ "$mode" != "countup" ] && [ "$total" -gt 0 ]; then
+            local eta
+            eta=$(date -d "@${end_time}" +%H:%M:%S 2>/dev/null)
+            [ -n "$eta" ] && prefix="${prefix} ETA ${eta}"
+        fi
+
+        local bar=""
+        if [ "$total" -gt 0 ]; then
+            local filled empty b s space
+            filled=$(( elapsed * bar_width / total ))
+            [ "$filled" -gt "$bar_width" ] && filled=$bar_width
+            empty=$(( bar_width - filled ))
+            bar=""
+            for ((b=0; b<filled; b++)); do bar+="$block_char"; done
+            space=""
+            for ((s=0; s<empty; s++)); do space+="-"; done
+            bar="[${color_code}${bar}${reset_code}${space}]"
+        fi
+
+        if [ "$is_piped" = true ]; then
+            echo "${prefix} ${bar}"
+        else
+            echo -ne "${prefix} ${bar} \r"
+        fi
+
+        if [ "$mode" = "countup" ] && [ "$total" -eq 0 ]; then
+            sleep 1
+            continue
+        elif [ "$remaining" -le 0 ]; then
+            break
+        fi
+        sleep 1
+    done
+}
+
+[ "$is_piped" = false ] && [ "$mode" != "quiet" ] && echo ""
+
+for ((round=1; round<=repeat_count; round++)); do
+    round_label=""
+    [ "$repeat_count" -gt 1 ] && round_label=" [${round}/${repeat_count}]"
+
+    run_timer "$total_seconds" "$round_label"
+
+    if [ "$mode" != "quiet" ] && [ "$is_piped" = false ]; then
+        echo ""
+    fi
+
+    if [ "$mode" != "quiet" ]; then
+        printf '\a'
+    fi
+    if [ "$notify" = true ] && command -v notify-send >/dev/null 2>&1; then
+        notify-send "Counter" "${label:-Timer} finished${round_label}"
+    fi
+    if [ -n "$log_file" ]; then
+        printf '%s | %s%s | %ds\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${label:-counter}" "$round_label" "$total_seconds" >> "$log_file"
+    fi
+
+    [ "$round" -lt "$repeat_count" ] && sleep 1
+done
+
+if [ "$mode" != "quiet" ] && [ "$is_piped" = false ]; then
+    echo ""
+fi
+
+if [ -t 1 ]; then
+    tput cnorm 2>/dev/null
+fi
+exit 0
