@@ -12,27 +12,29 @@ PINK='\033[1;35m'
 NC='\033[0m'
 border_color='\033[1;36m'
 
-cd ~
-mnt-win --umount
-counter 3 -l 'Unmounting Win-Drive'
+WINMOUNT="/mnt/win"
+if mountpoint -d "$WINMOUNT"; then
+        cd ~ && clear
+        mnt-win --umount | counter 5 -l 'Unmounting /mnt/win/'
+fi
 clear
 mnt-win
-counter 3 -l 'Mounting Win-Drive'
 clear
-cat >/tmp/WinTux-v0.9 <<'EOF'
+counter 5 -l 'Mounting /mnt/wim/'
+clear
+cat >/tmp/WinTux-v1.1 <<'EOF'
 ╭────────────────────────────────────────────────────╮
-│ ❖  WinTux v0.9 ~ git.glitchlinux.com/wintux.git ❖  │
+│ ❖  WinTux v1.1 ~ git.glitchlinux.com/wintux.git ❖  │
 ╭────────────────────────────────────────────────────╮
 │ Enables Bash shell in Windows through Qemu-Virtfs  │
 │  Using WinTux comes with ABSOLUTELY NO WARRANTY!   │
 ╰────────────────────────────────────────────────────╯
 EOF
-cat /tmp/WinTux-v0.9 | lolcat
-cd /mnt/
-cd win/
+cat /tmp/WinTux-v1.1 | lolcat
+cd /mnt/win
 HEADER
 
-bash /bin/mnt-win-all &
+bash /usr/local/bin/mnt-win-all &
 
 chmod +x /etc/bash.bashrc
 clear

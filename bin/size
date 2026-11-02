@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# SIZE - File and Folder Size Display Utility (bash port)
+# Requires: bash 4+, GNU findutils, GNU coreutils (stat --printf), awk
+
+usage() {
+    cat <<'EOF'
+
+SIZE - File and Folder Size Display Utility
+Usage:
+  SIZE [options] <path>
+
+Options:
+  -r, --recursive    Show recursive size for directories
+  -k, --kilobytes    Display size in kilobytes
+  -m, --megabytes    Display size in megabytes
+  -g, --gigabytes    Display size in gigabytes
+  -t, --terabytes    Display size in terabytes
+  --list             Create list of files sorted by size in /tmp/
+  -h, --help         Show this help message
+EOF
+}
+
+# awk helper shared by every size formatter (same rules as the Python version)
+AWK_HUMAN='
+function human(b, u) {
+    if (u == "k") return sprintf("%.2fKB", b / 1024)
+    if (u == "m") return sprintf("%.2fMB", b / 1048576)
+    if (u == "g") return sprintf("%.2fGB", b / 1073741824)
+    if (u == "t") return sprintf("%.2fTB", b / 1099511627776)
+    if (b >= 1099511627776) return sprintf("%.1fTB", b / 1099511627776)
+    if (b >= 1073741824)    return sprintf("%.1fGB", b / 1073741824)
+    if (b >= 1048576)       return sprintf("%dMB", int(b / 1048576))
+    if (b >= 1024)          return sprintf("%dKB", int(b / 1024))
+    return sprintf("%dB", b)
+}'
+
+# Emit "size<TAB>path" for every file. Symlinks to files count with the
+# target size, symlinked dirs are not descended (same as os.walk).
+list_files() {
+    local p=$1 rec=$2 depth=()
+    if [[ -f $p ]]; then
+        stat -L --printf '%s\t%n\n' -- "$p" 2>/dev/null
+        return
+    fi
+    [[ $rec == 1 ]] || depth=(-mindepth 1 -maxdepth 1)
+    find "$p" "${depth[@]}" -xtype f -print0 2>/dev/null |
+        xargs -0 -r stat -L --printf '%s\t%n\n' -- 2>/dev/null
+}
+
+create_size_list() {
+    local p=$1 rec=$2 unit=$3
+    shopt -s extglob
+    [[ $p != / ]] && p=${p%%+(/)}
+
+    local tmp
+    tmp=$(mktemp) || exit 1
+    trap 'rm -f "$tmp"' EXIT
+    list_files "$p" "$rec" | sort -s -t $'\t' -k1,1nr > "$tmp"
+
+    local count
+    count=$(wc -l < "$tmp")
+    if (( count == 0 )); then
+        echo "No files found in '$p'" >&2
+        return
+    fi
+
+    local safe=${p//\//_}
+    safe=${safe// /_}
+    safe=${safe##+(_)}
+    safe=${safe%%+(_)}
+    safe=${safe:0:50}
+
+    local ts suffix=""
+    ts=$(date +%Y%m%d_%H%M%S)
+    [[ $rec == 1 ]] && suffix="_recursive"
+    local list_path="${TMPDIR:-/tmp}/size_list_${safe}${suffix}_${ts}.txt"
+    local sep
+    sep=$(printf '=%.0s' {1..80})
+
+    {
+        printf 'File size list for: %s\n' "$p"
+        printf 'Generated: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+        printf 'Recursive: %s\n' "$([[ $rec == 1 ]] && echo True || echo False)"
+        printf 'Total files: %d\n' "$count"
+        printf '%s\n\n' "$sep"
+        awk -F'\t' -v u="$unit" "$AWK_HUMAN"'
+            { path = substr($0, index($0, "\t") + 1)
+              printf "%4d. %12s  %s\n", NR, human($1, u), path }' "$tmp"
+    } > "$list_path"
+
+    local total
+    total=$(awk -F'\t' -v u="$unit" "$AWK_HUMAN"'{ s += $1 } END { print human(s, u) }' "$tmp")
+
+    echo
+    echo "Created list of $count files"
+    echo "Total size: $total"
+    echo "List saved to: $list_path"
+
+    # Prompt to show list (Ctrl-C / EOF behave like the Python version)
+    trap 'printf "\nList saved to: %s\n(Prompt cancelled)\n" "$list_path"; exit 0' INT
+    local resp
+    printf '\nShow list? [Y/n]: '
+    if ! read -r resp; then
+        printf '\nList saved to: %s\n(Prompt cancelled)\n' "$list_path"
+        return
+    fi
+    trap - INT
+    resp=${resp,,}
+
+    if [[ -z $resp || $resp == y || $resp == yes ]]; then
+        echo
+        echo "$sep"
+        echo "Top 20 largest files in '$p':"
+        echo "$sep"
+        head -n 20 "$tmp" | awk -F'\t' -v u="$unit" "$AWK_HUMAN"'
+            { path = substr($0, index($0, "\t") + 1)
+              if (length(path) > 70) path = "..." substr(path, length(path) - 66)
+              printf "%3d. %12s  %s\n", NR, human($1, u), path }'
+        if (( count > 20 )); then
+            printf '\n... and %d more files in the complete list\n' $((count - 20))
+        fi
+        printf '\nFull list available at: %s\n' "$list_path"
+    else
+        printf '\nList saved to: %s\n' "$list_path"
+        printf 'To view: cat %s | less\n' "$list_path"
+    fi
+}
+
+main() {
+    local path="" rec=0 list=0 help=0 k=0 m=0 g=0 t=0 arg
+
+    for arg in "$@"; do
+        case $arg in
+            -h|--help)       help=1 ;;
+            -r|--recursive)  rec=1 ;;
+            -k|--kilobytes)  k=1 ;;
+            -m|--megabytes)  m=1 ;;
+            -g|--gigabytes)  g=1 ;;
+            -t|--terabytes)  t=1 ;;
+            --list)          list=1 ;;
+            -*)
+                echo "Error: Unrecognized option '$arg'" >&2
+                usage >&2
+                exit 1 ;;
+            *)
+                if [[ -z $path ]]; then
+                    path=$arg
+                else
+                    echo "Error: Too many arguments: '$arg'" >&2
+                    exit 1
+                fi ;;
+        esac
+    done
+
+    if (( help )) || [[ -z $path ]]; then
+        usage
+        exit 0
+    fi
+
+    local unit=""
+    if   (( k )); then unit=k
+    elif (( m )); then unit=m
+    elif (( g )); then unit=g
+    elif (( t )); then unit=t
+    fi
+
+    if [[ ! -e $path ]]; then
+        echo "Error: '$path' does not exist" >&2
+        exit 1
+    fi
+
+    if (( list )); then
+        create_size_list "$path" "$rec" "$unit"
+        exit 0
+    fi
+
+    trap 'echo; echo "Operation cancelled by user" >&2; exit 1' INT
+
+    local readable
+    readable=$(list_files "$path" "$rec" |
+        awk -F'\t' -v u="$unit" "$AWK_HUMAN"'{ s += $1 } END { print human(s + 0, u) }')
+
+    local path_str=$path
+    [[ -d $path && $path != */ ]] && path_str+=/
+
+    if (( rec )); then
+        echo "recursive size of: $path_str"
+    else
+        echo "Size of: $path_str"
+    fi
+    echo "$readable"
+}
+
+main "$@"

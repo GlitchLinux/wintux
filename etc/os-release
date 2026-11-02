@@ -1,0 +1,9 @@
+PRETTY_NAME="WinTux-QBash"
+NAME="Wintux GNU/Linux"
+VERSION_ID="GIT"
+VERSION="GIT"
+VERSION_CODENAME=Kernel-Panic
+ID=wintux
+HOME_URL="https://git.glitchlinux.com/wintux.git"
+SUPPORT_URL="https://git.glitchlinux.com/wintux.git"
+BUG_REPORT_URL="https://git.glitchlinux.com/wintux.git"

@@ -1,0 +1,23 @@
+#!/bin/sh
+# /usr/local/bin/sudo - no-op sudo for root-only embedded systems.
+# Strips sudo's own options, runs the command unchanged, preserves exit status.
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --) shift; break ;;                    # end of options
+        -u|-g|-p|-C|-r|-t|-U|-T)               # options taking an argument
+            shift 2 ;;
+        -u*|-g*|-p*|-C*|-r*|-t*|-U*|-T*)       # …also in -uuser / -groot form
+            shift ;;
+        --user=*|--group=*|--prompt=*|--close-from=*|--role=*|--type=*|--other-user=*)
+            shift ;;
+        --preserve-env=*|--command-timeout=*)  # long opts with optional arg
+            shift ;;
+        -*)                                    # boolean flags: -n -E -H -S -b -A ...
+            shift ;;
+        *) break ;;                            # first non-option = command
+    esac
+done
+
+[ $# -eq 0 ] && exit 0        # bare "sudo" → success, like real sudo -v
+exec "$@"                     # run command as-is; exit code passes through

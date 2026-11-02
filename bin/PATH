@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# PATH - Display full paths (bash port)
+# Note: never touch $PATH inside this script, all vars are lowercase.
+# Requires: bash 4+, GNU coreutils (realpath), GNU findutils
+
+usage() {
+    cat <<'EOF'
+
+PATH - Display full paths
+Usage: PATH [--list] <target>
+EOF
+}
+
+main() {
+    local arg list_mode=0
+    for arg in "$@"; do
+        [[ $arg == -h || $arg == --help ]] && { usage; exit 0; }
+        [[ $arg == --list ]] && list_mode=1
+    done
+    (( $# < 1 )) && { usage; exit 0; }
+
+    local target=${!#}   # last argument, like sys.argv[-1]
+    local path
+
+    # Resolve path
+    if [[ $target == . ]]; then
+        path=$(pwd -P)
+    elif [[ $target == '~' ]]; then
+        path=$HOME
+    elif [[ $target == '~/'* ]]; then
+        path="$HOME/${target:2}"
+        path=$(tr -s / <<< "$path")
+        [[ $path != / ]] && path=${path%/}
+    else
+        path=$(realpath -m -- "$target")
+    fi
+
+    if [[ ! -e $path ]]; then
+        echo "Error: '$target' not found" >&2
+        exit 1
+    fi
+
+    if (( list_mode )); then
+        local files=()
+        if [[ -f $path ]]; then
+            files=("$path")
+        else
+            mapfile -t files < <(
+                find "$path" -mindepth 1 -maxdepth 1 -xtype f -print0 2>/dev/null |
+                    xargs -0 -r realpath -- | LC_ALL=C sort
+            )
+        fi
+
+        local ts safe list_file
+        ts=$(date +%Y%m%d_%H%M%S)
+        safe=${path//\//_}
+        safe=${safe:0:50}
+        list_file="${TMPDIR:-/tmp}/paths_${safe}_${ts}.txt"
+
+        (( ${#files[@]} )) && printf '%s\n' "${files[@]}" > "$list_file" || : > "$list_file"
+
+        echo "List: ${#files[@]} files -> $list_file"
+
+        # Show if requested (Ctrl-C / EOF exit quietly, like the bare except)
+        trap 'echo; exit 0' INT
+        local resp
+        printf 'Show? [Y/n]: '
+        read -r resp || { echo; exit 0; }
+        resp=${resp,,}
+        if [[ -z $resp || $resp == y || $resp == yes ]]; then
+            printf '\n%s:\n' "$path"
+            local f
+            for f in "${files[@]}"; do
+                printf '  %s\n' "$f"
+            done
+        fi
+    else
+        if [[ -d $path ]]; then
+            [[ $path == / ]] && echo / || echo "$path/"
+        else
+            echo "$path"
+        fi
+    fi
+}
+
+main "$@"
