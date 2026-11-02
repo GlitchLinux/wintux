@@ -1,0 +1,45 @@
+#!/bin/sh
+# /bin/mnt-win-all - mount every Windows drive letter via CIFS
+USER_IN="${1:-Admin}"
+PASS_IN="${2:-9880}"
+HOST="10.0.2.2"
+OPTS="vers=3.0,uid=0,gid=0,iocharset=utf8,nounix,noperm"
+LOG="/var/log/wintux-mount-all.log"
+TMO=8
+
+: > "$LOG"
+exec >>"$LOG" 2>&1
+echo "[$(date)] mnt-win-all start, user=$USER_IN"
+
+try_letter() {
+    L="$1"
+    l=$(echo "$L" | tr A-Z a-z)
+    mnt="/mnt/$l"
+    mkdir -p "$mnt"
+    if mountpoint -q "$mnt"; then
+        echo "[$L] already mounted"
+        return
+    fi
+
+    mount -t cifs "//$HOST/$L" "$mnt" \
+        -o "user=$USER_IN,pass=$PASS_IN,$OPTS" 2>&1 &
+    MPID=$!
+    ( sleep "$TMO"; kill -9 "$MPID" 2>/dev/null ) &
+    KPID=$!
+    wait "$MPID" 2>/dev/null
+    kill "$KPID" 2>/dev/null
+    wait "$KPID" 2>/dev/null
+
+    if mountpoint -q "$mnt"; then
+        echo "[$L] MOUNTED at $mnt"
+    else
+        rmdir "$mnt" 2>/dev/null
+        echo "[$L] no share"
+    fi
+}
+
+for L in A B C D E F G H I J K L M N O P Q R S T U V W X Y Z; do
+    try_letter "$L" &
+done
+wait
+echo "[$(date)] mnt-win-all done"
