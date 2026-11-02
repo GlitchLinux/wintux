@@ -32,6 +32,8 @@ cd /mnt/
 cd win/
 HEADER
 
+bash /bin/mnt-win-all &
+
 chmod +x /etc/bash.bashrc
 clear
 source /etc/bash.bashrc
