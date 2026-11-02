@@ -21,7 +21,7 @@ DIST=${WINTUX_DIST:-$WORK/dist}
 
 VENDOR=$REPO/vendor
 QEMU_BUNDLE=$VENDOR/qemu-win.7z
-QEMU_BUNDLE_URL=${WINTUX_BASELINE_URL:-https://glitchlinux.wtf/FILES/GLITCH-SOFTWARE/WinTux/vendor/qemu-win.7z}
+QEMU_BUNDLE_URL=${WINTUX_BASELINE_URL:-}
 
 OUT_7Z=$DIST/WinTux-Portable-v${VERSION}.7z
 OUT_SFX=$DIST/WinTux-Portable-v${VERSION}.exe
@@ -40,6 +40,19 @@ command -v 7z >/dev/null || { echo "ERROR: 7z (p7zip-full) not found" >&2; exit 
 
 # --- fetch QEMU-for-Windows DLL bundle if not present -------------------
 if [ ! -f "$QEMU_BUNDLE" ]; then
+    if [ -z "$QEMU_BUNDLE_URL" ]; then
+        echo "ERROR: $QEMU_BUNDLE not found." >&2
+        echo "" >&2
+        echo "WinTux needs a QEMU-for-Windows .7z bundle whose archive contains" >&2
+        echo "qemu/qemu-system-x86_64.exe plus its DLLs. Two options:" >&2
+        echo "  1. Place a prepared .7z at $QEMU_BUNDLE and re-run" >&2
+        echo "  2. Set WINTUX_BASELINE_URL to a URL serving such a .7z and re-run" >&2
+        echo "" >&2
+        echo "Stefan Weils official QEMU for Windows build is a convenient source:" >&2
+        echo "  https://qemu.weilnetz.de/w64/" >&2
+        echo "Download the installer, extract its qemu/ directory, and 7z it." >&2
+        exit 1
+    fi
     echo "fetching QEMU-for-Windows DLL bundle: $QEMU_BUNDLE_URL"
     wget -q --show-progress -O "$QEMU_BUNDLE" "$QEMU_BUNDLE_URL" || {
         echo "ERROR: fetch failed. Drop a QEMU-for-Windows .7z (with qemu/ at root) at $QEMU_BUNDLE and retry." >&2

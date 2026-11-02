@@ -69,7 +69,7 @@ fi
 # --- step 1b: prime the Buildroot download cache if missing --------------
 # Shaves ~5-10 min off a fresh build by skipping upstream source fetches.
 # Set WINTUX_DL_CACHE_URL=none to disable, or point at your own mirror.
-DL_URL=${WINTUX_DL_CACHE_URL:-https://glitchlinux.wtf/FILES/GLITCH-SOFTWARE/WinTux/vendor/wintux-dl-cache.tar}
+DL_URL=${WINTUX_DL_CACHE_URL:-none}
 if [ "$cmd" = "full" ] && [ "$DL_URL" != "none" ] && \
    { [ ! -d "$BR_SRC/dl" ] || [ -z "$(ls -A "$BR_SRC/dl" 2>/dev/null)" ]; }; then
     echo "[1b/7] priming Buildroot dl cache from $DL_URL"

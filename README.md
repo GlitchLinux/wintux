@@ -116,12 +116,18 @@ cd wintux
 ./build.sh
 ```
 
-That's it. First run clones upstream Buildroot (pinned tag), primes the
-Buildroot download cache (so you skip the ~10 min of upstream source
-fetches), downloads a Bootlin pre-built cross-toolchain (so you skip the
-~45 min of compiling gcc + glibc from scratch), cross-compiles the Win32
-GUI, builds the kernel + rootfs, fetches the QEMU-for-Windows DLL bundle,
-and assembles `.work/dist/WinTux-Portable-vX.Y.exe`.
+First run clones upstream Buildroot (pinned tag), downloads a Bootlin
+pre-built cross-toolchain, cross-compiles the Win32 GUI, builds the
+kernel + rootfs, assembles the Linux side of the image, and packages it
+into `.work/dist/WinTux-Portable-vX.Y.exe` with the Windows-side QEMU
+runtime (see Prerequisite below).
+
+**Prerequisite: QEMU-for-Windows bundle.**  Place a .7z at `vendor/qemu-win.7z`
+whose root contains a `qemu/` directory with `qemu-system-x86_64.exe` plus
+its DLLs. [Stefan Weil's QEMU for Windows build](https://qemu.weilnetz.de/w64/)
+is a convenient source: install it, pack its `qemu/` directory with 7-Zip,
+drop the result at `vendor/qemu-win.7z`. Alternatively, set
+`WINTUX_BASELINE_URL` to any URL serving such a `.7z`.
 
 First build is ~15-20 min with the Bootlin toolchain + primed dl cache.
 Incremental rebuilds after you touch a file in `bin/` / `etc/` / `root/`
